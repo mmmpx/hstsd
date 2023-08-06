@@ -1,26 +1,37 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+
 module Main where
 
 import Data.Tuple
 import Data.Foldable
 import Data.Time.Clock
 
-data MetricPoint
-  = Count
-      { ts  :: UTCTime
-      , val :: Integer }
-  | Gauge
+data Sample
+  = Sample
       { ts  :: UTCTime
       , val :: Integer }
   deriving Show
 
-type GroupFn
-  = [MetricPoint] -> [[MetricPoint]]
+data Counter
+  = Counter
+    { sample :: Sample
+    , cumsum :: Integer }
+  deriving Show
 
-rangeGroup :: NominalDiffTime -> UTCTime -> GroupFn
-rangeGroup r s ms = intervalGroup (intervals r s) ms
+type GroupFn a
+  = [a] -> [[a]]
+
+rangeGroup :: NominalDiffTime -> UTCTime -> GroupFn Sample
+rangeGroup r s = intervalGroup intervals
   where
-    intervalGroup (r:rs) xs = uncurry (flip (:) . intervalGroup rs) $ swap $ span ((>= r) . ts) xs
-    intervals r s = map (((flip addUTCTime) s) . (* r)) [-1,-2..]
+    intervalGroup (i:is) = uncurry (flip (:) . intervalGroup is) . swap . span ((>= i) . ts)
+    intervals = map (((flip addUTCTime) s) . (* r)) [-1,-2..]
+
+cons :: Sample -> [Counter] -> [Counter]
+x `cons` [] = [Counter x (val x)]
+x `cons` (y:ys) | (val x) >= (val $ sample y) = (Counter x ((cumsum y) - (val $ sample y) + (val x))):(y:ys)
+                | otherwise = (Counter x ((cumsum y) + (val x))):(y:ys)
 
 main :: IO ()
 main = do
@@ -33,7 +44,7 @@ main = do
   let t2 = addUTCTime sec2 curTime
   let t3 = addUTCTime sec10 curTime
 
-  let ms = [Count t1 100, Count t2 95, Count t3 53]
+  let ms = [Sample t1 100, Sample t2 95, Sample t3 53]
 
   let sec5 = secondsToNominalDiffTime 5
 
