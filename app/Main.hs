@@ -1,6 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
-
 module Main where
 
 import Data.Tuple
